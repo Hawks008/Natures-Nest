@@ -393,45 +393,73 @@
   <div class="drawer-items" id="drawer-items"></div>
   <div class="drawer-foot">
     <div class="subtotal-row"><span>Subtotal</span><span class="mono" id="subtotal">₵0.00</span></div>
-    <button class="btn btn-honey" style="width:100%; justify-content:center;" onclick="checkout()">Checkout</button>
+    <input type="text" id="checkout-name" placeholder="Your name" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:6px; font-family:'Karla'; font-size:13.5px; margin-bottom:8px; background:var(--paper-card); color:var(--ink);">
+    <input type="email" id="checkout-email" placeholder="Your email" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:6px; font-family:'Karla'; font-size:13.5px; margin-bottom:10px; background:var(--paper-card); color:var(--ink);">
+    <div id="checkout-status" style="font-size:12.5px; color:var(--clay); margin-bottom:8px; display:none;"></div>
+    <button class="btn btn-honey" style="width:100%; justify-content:center;" onclick="checkout()" id="checkout-btn">Checkout</button>
   </div>
 </div>
 
 <script>
-const products = [
-  {id:'jasmine', name:'Jasmine rice', cat:'grains', desc:'Fragrant long-grain rice, sun-dried and stone-milled.', weight:'5 kg bag', price:38, color:'#D9C79A'},
-  {id:'brownrice', name:'Local brown rice', cat:'grains', desc:'Unpolished rice with the bran left on for extra fibre.', weight:'5 kg bag', price:34, color:'#B6996B'},
-  {id:'millet', name:'Pearl millet', cat:'grains', desc:'Ground fresh weekly, great for porridge and tuo zaafi.', weight:'2 kg bag', price:22, color:'#C9B27E'},
-  {id:'shea', name:'Cold-pressed shea butter', cat:'oils', desc:'Unrefined, hand-whipped, straight from Tamale.', weight:'500 g jar', price:45, color:'#EFE3C6'},
-  {id:'palmoil', name:'Red palm oil', cat:'oils', desc:'Traditionally pressed, rich colour and aroma.', weight:'1 L bottle', price:32, color:'#B5501D'},
-  {id:'groundnut', name:'Groundnut oil', cat:'oils', desc:'Cold-pressed from roasted groundnuts, light and nutty.', weight:'1 L bottle', price:29, color:'#D9A441'},
-  {id:'suya', name:'Suya spice mix', cat:'spices', desc:'Ground peanut and pepper blend, hand-mixed in small batches.', weight:'250 g pouch', price:18, color:'#9C4A2C'},
-  {id:'ginger', name:'Dried ginger powder', cat:'spices', desc:'Sun-dried root, ground fine, no anti-caking agents.', weight:'150 g pouch', price:14, color:'#C89116'},
-  {id:'pepper', name:'Dried chilli pepper', cat:'spices', desc:'Sun-dried whole peppers, coarsely ground.', weight:'200 g pouch', price:16, color:'#8C2C1E'},
-  {id:'plantain', name:'Plantain chips', cat:'dried', desc:'Thin-sliced and lightly salted, no palm oil residue.', weight:'150 g bag', price:12, color:'#E1C24A'},
-  {id:'coconut', name:'Dried coconut flakes', cat:'dried', desc:'Toasted lightly for snacking or baking.', weight:'200 g bag', price:15, color:'#EDE6D3'},
-  {id:'kokonte', name:'Kokonte flour', cat:'dried', desc:'Sun-dried cassava, milled fine, no bleaching.', weight:'1 kg bag', price:20, color:'#D7C9A3'}
+// Live backend. Update this if your Render URL ever changes.
+const API_BASE = 'https://natures-nest.onrender.com';
+
+// Fallback data shown if the live API can't be reached (e.g. it's still
+// waking up from sleep on Render's free tier, or the network is down).
+const fallbackProducts = [
+  {id:'jasmine', name:'Jasmine rice', category:'grains', description:'Fragrant long-grain rice, sun-dried and stone-milled.', weight_label:'5 kg bag', price:38, swatch_color:'#D9C79A'},
+  {id:'brownrice', name:'Local brown rice', category:'grains', description:'Unpolished rice with the bran left on for extra fibre.', weight_label:'5 kg bag', price:34, swatch_color:'#B6996B'},
+  {id:'millet', name:'Pearl millet', category:'grains', description:'Ground fresh weekly, great for porridge and tuo zaafi.', weight_label:'2 kg bag', price:22, swatch_color:'#C9B27E'},
+  {id:'shea', name:'Cold-pressed shea butter', category:'oils', description:'Unrefined, hand-whipped, straight from Tamale.', weight_label:'500 g jar', price:45, swatch_color:'#EFE3C6'},
+  {id:'palmoil', name:'Red palm oil', category:'oils', description:'Traditionally pressed, rich colour and aroma.', weight_label:'1 L bottle', price:32, swatch_color:'#B5501D'},
+  {id:'groundnut', name:'Groundnut oil', category:'oils', description:'Cold-pressed from roasted groundnuts, light and nutty.', weight_label:'1 L bottle', price:29, swatch_color:'#D9A441'},
+  {id:'suya', name:'Suya spice mix', category:'spices', description:'Ground peanut and pepper blend, hand-mixed in small batches.', weight_label:'250 g pouch', price:18, swatch_color:'#9C4A2C'},
+  {id:'ginger', name:'Dried ginger powder', category:'spices', description:'Sun-dried root, ground fine, no anti-caking agents.', weight_label:'150 g pouch', price:14, swatch_color:'#C89116'},
+  {id:'pepper', name:'Dried chilli pepper', category:'spices', description:'Sun-dried whole peppers, coarsely ground.', weight_label:'200 g pouch', price:16, swatch_color:'#8C2C1E'},
+  {id:'plantain', name:'Plantain chips', category:'dried', description:'Thin-sliced and lightly salted, no palm oil residue.', weight_label:'150 g bag', price:12, swatch_color:'#E1C24A'},
+  {id:'coconut', name:'Dried coconut flakes', category:'dried', description:'Toasted lightly for snacking or baking.', weight_label:'200 g bag', price:15, swatch_color:'#EDE6D3'},
+  {id:'kokonte', name:'Kokonte flour', category:'dried', description:'Sun-dried cassava, milled fine, no bleaching.', weight_label:'1 kg bag', price:20, swatch_color:'#D7C9A3'}
 ];
 
+let products = [];
 let cart = {};
 let activeFilter = 'all';
+
+async function loadProducts(){
+  const grid = document.getElementById('product-grid');
+  grid.innerHTML = '<p style="grid-column:1/-1; font-size:14px; color:var(--ink-soft);">Loading products…</p>';
+  try {
+    const res = await fetch(`${API_BASE}/api/products`);
+    if(!res.ok) throw new Error('Bad response');
+    products = await res.json();
+  } catch (err) {
+    console.warn('Could not reach live product API, showing fallback list.', err);
+    products = fallbackProducts;
+  }
+  renderGrid();
+}
 
 function renderGrid(){
   const grid = document.getElementById('product-grid');
   grid.innerHTML = '';
-  const list = activeFilter === 'all' ? products : products.filter(p => p.cat === activeFilter);
+  const list = activeFilter === 'all' ? products : products.filter(p => p.category === activeFilter);
+  if(list.length === 0){
+    grid.innerHTML = '<p style="grid-column:1/-1; font-size:14px; color:var(--ink-soft);">No products in this category yet.</p>';
+    return;
+  }
   list.forEach(p => {
+    const price = Number(p.price);
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="swatch" style="background:${p.color};">
-        <div class="price-tag mono">₵${p.price.toFixed(2)}</div>
+      <div class="swatch" style="background:${p.swatch_color};">
+        <div class="price-tag mono">₵${price.toFixed(2)}</div>
       </div>
-      <span class="card-cat">${p.cat}</span>
+      <span class="card-cat">${p.category}</span>
       <h3>${p.name}</h3>
-      <p class="desc">${p.desc}</p>
+      <p class="desc">${p.description}</p>
       <div class="card-footer">
-        <span class="weight">${p.weight}</span>
+        <span class="weight">${p.weight_label}</span>
         <button class="add-btn" onclick="addToCart('${p.id}')">Add to bag</button>
       </div>`;
     grid.appendChild(card);
@@ -469,15 +497,16 @@ function renderCart(){
     itemsEl.innerHTML = '';
     ids.forEach(id => {
       const p = products.find(x => x.id === id);
+      const price = Number(p.price);
       const qty = cart[id];
-      subtotal += p.price * qty;
+      subtotal += price * qty;
       const row = document.createElement('div');
       row.className = 'cart-row';
       row.innerHTML = `
-        <div class="cart-swatch" style="background:${p.color};"></div>
+        <div class="cart-swatch" style="background:${p.swatch_color};"></div>
         <div class="cart-info">
           <h4>${p.name}</h4>
-          <span class="mono">₵${p.price.toFixed(2)}</span>
+          <span class="mono">₵${price.toFixed(2)}</span>
           <div class="qty-row">
             <button class="qty-btn" onclick="changeQty('${id}', -1)">−</button>
             <span class="mono" style="font-size:13px;">${qty}</span>
@@ -499,9 +528,52 @@ function closeDrawer(){
   document.getElementById('drawer').classList.remove('open');
   document.getElementById('overlay').classList.remove('open');
 }
-function checkout(){
-  if(Object.keys(cart).length === 0) return;
-  alert('Checkout is a placeholder — wire this up to your payment provider when ready.');
+async function checkout(){
+  const statusEl = document.getElementById('checkout-status');
+  const btn = document.getElementById('checkout-btn');
+  const name = document.getElementById('checkout-name').value.trim();
+  const email = document.getElementById('checkout-email').value.trim();
+
+  statusEl.style.display = 'none';
+
+  if(Object.keys(cart).length === 0){
+    statusEl.textContent = 'Your bag is empty.';
+    statusEl.style.display = 'block';
+    return;
+  }
+  if(!name || !email){
+    statusEl.textContent = 'Enter your name and email to check out.';
+    statusEl.style.display = 'block';
+    return;
+  }
+
+  const items = Object.keys(cart).map(id => ({ productId: id, quantity: cart[id] }));
+
+  btn.textContent = 'Placing order…';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerName: name, email, items })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Could not place order.');
+
+    cart = {};
+    renderCart();
+    document.getElementById('checkout-name').value = '';
+    document.getElementById('checkout-email').value = '';
+    alert(`Order #${data.order.id} placed. Payment isn't wired up yet, so this is a placeholder confirmation.`);
+    closeDrawer();
+  } catch (err) {
+    statusEl.textContent = err.message;
+    statusEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Checkout';
+    btn.disabled = false;
+  }
 }
 
 document.getElementById('filters').addEventListener('click', (e) => {
@@ -512,7 +584,7 @@ document.getElementById('filters').addEventListener('click', (e) => {
   renderGrid();
 });
 
-renderGrid();
+loadProducts();
 renderCart();
 </script>
 
